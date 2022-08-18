@@ -52,6 +52,7 @@ def create_schema(cur: CMySQLCursor):
     cur.execute("CREATE TABLE IF NOT EXISTS pets("
                 "owner_id INTEGER UNSIGNED NOT NULL,"
                 "guild_id BIGINT UNSIGNED NOT NULL, "
+                "pet_name VARCHAR(32) NOT NULL,"
                 "current_owner BIGINT UNSIGNED NOT NULL DEFAULT 920026662974930954,"
                 "purchase_price DECIMAL(20, 2) NOT NULL DEFAULT 100000,"
                 "FOREIGN KEY (owner_id) REFERENCES users(user_id)"
