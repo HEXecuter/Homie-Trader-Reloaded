@@ -1,14 +1,10 @@
 from dotenv import load_dotenv
 from os import getenv
-import discord
 from nextcord.ext import commands
 import nextcord
 from datetime import datetime
-from functools import partial
 from random import randint
 
-FLUCTUATION_MULTIPLIER = 5.0
-DEBUG = 1
 
 load_dotenv()
 TOKEN = getenv("DISCORD_TOKEN")
