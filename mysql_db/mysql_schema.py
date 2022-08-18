@@ -79,6 +79,8 @@ def create_schema(cur: CMySQLCursor):
                 ")")
     cur.execute("CREATE INDEX multipliers_industry_id_idx ON multipliers(industry_id);")
 
+    cur.close()
+
 
 if __name__ == "__main__":
     load_dotenv()
