@@ -12,8 +12,14 @@ class User:
         self.cur = cur
         cur.execute("SELECT * FROM users WHERE discord_id = %s AND guild_id = %s LIMIT 1",
                     (discord_id, guild_id))
+
         self.user_id, self.discord_id, self.guild_id, self.buying_power, self.paycheck_redeemed, \
             self.creating_power, self.job_title, self.company_name = cur.fetchone()
+
+        cur.execute("SELECT current_owner, pet_name FROM pets WHERE owner_id = %s", (self.user_id,))
+        self.pet_owner, self.pet_name = cur.fetchone()
+        self.pet_status = "Safe for now" if self.pet_owner == self.discord_id else "Kidnapped"
+
 
     @classmethod
     def create_user(cls, cur: CMySQLCursor, discord_id: int, guild_id: int, pet_name: str) -> "User":
