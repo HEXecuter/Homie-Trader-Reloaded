@@ -36,12 +36,13 @@ def create_schema(cur: CMySQLCursor):
 
     cur.execute("CREATE TABLE IF NOT EXISTS nfts("
                 "nft_id INTEGER UNSIGNED PRIMARY KEY AUTO_INCREMENT, "
+                "nft_name VARCHAR(32) NOT NULL,"
                 "based_on BIGINT UNSIGNED NOT NULL, "
                 "current_owner INTEGER UNSIGNED NOT NULL, "
                 "guild_id BIGINT UNSIGNED NOT NULL, "
                 "ticker VARCHAR(10) NOT NULL, "
                 "image_url VARCHAR(100) NOT NULL, "
-                "last_checked BIGINT NOT NULL, "
+                "last_checked DATE NOT NULL DEFAULT (CURRENT_DATE), "
                 "current_value DECIMAL(20, 2) NOT NULL,"
                 "FOREIGN KEY(current_owner) REFERENCES users(user_id)"
                 ")")
