@@ -7,7 +7,7 @@ from random import randint, choice, uniform
 from mysql_db.discordmodels import get_user, User
 from mysql_db.mysql_schema import create_schema
 import mysql.connector
-from homie_assets import movies
+from homie_assets import movies, degrees, majors
 from decimal import Decimal
 import finnhub
 from asyncio import sleep
@@ -44,8 +44,8 @@ def seconds_until_midnight():
 async def account_not_found_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Create an Account First", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
-                           f"You need to create an account before you can use this command. Use the `/create_account [pet_name]` " \
-                           f"command to get started. Make sure to include your pet's name! :grin: "
+                           f"You need to create an account before you can use this command. Use the `/create_account" \
+                           f" [pet_name]` command to get started. Make sure to include your pet's name! :grin: "
     response.set_thumbnail("https://i.kym-cdn.com/photos/images/facebook/001/083/714/6f5.jpg")
     await interaction.response.send_message(embed=response)
 
@@ -53,7 +53,8 @@ async def account_not_found_response(interaction: nextcord.Interaction):
 async def job_not_found_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Apply for a Job First", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
-                           f"You need to get a job before you can use this command. Use the `/job apply [job_title] [company_name]` "
+                           f"You need to get a job before you can use this command. Use the " \
+                           f"`/job apply [job_title] [company_name]` "
     response.set_thumbnail("https://preview.redd.it/4naeoad970351.jpg?auto=webp&s="
                            "8382476bcdc1ff875a65b9650af3915f42f26854")
     await interaction.response.send_message(embed=response)
@@ -324,5 +325,20 @@ async def mint(interaction: nextcord.Interaction,
                            "me_gusta_mucho_by_megustamuchoplz-d416uqk.png?1319690633")
     await interaction.followup.send(embed=response)
 
+
+@bot.slash_command()
+async def purchase(interaction: nextcord.Interaction):
+    """Main command for purchase related subcommands"""
+    pass
+
+
+@purchase.subcommand()
+async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.SlashOption(choices=degrees.keys())):
+    pass
+
+
+@purchase.subcommand()
+async def stock(interaction: nextcord.Interaction, user: nextcord.Member):
+    pass
 
 bot.run(TOKEN)
