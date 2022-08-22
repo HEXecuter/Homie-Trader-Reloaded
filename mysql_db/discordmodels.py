@@ -1,7 +1,4 @@
-import mysql.connector
 from mysql.connector.cursor_cext import CMySQLCursor  # Just for type hinting
-from os import getenv
-from dotenv import load_dotenv
 from decimal import Decimal
 from typing import Union
 from datetime import date
@@ -55,6 +52,17 @@ class User:
                     "%s, %s, DEFAULT, DEFAULT)", (discord_id, guild_id, guild_id, pet_name))
         return cls(cur, discord_id, guild_id)
 
+    def nft_exists(self, based_on_id):
+        self.cur.execute("SELECT COUNT(*) FROM nfts WHERE based_on = %s AND guild_id = %s",
+                         (based_on_id, self.guild_id))
+        return self.cur.fetchone()[0]
+
+    def create_nft(self, nft_name, based_on, symbol, url, value):
+        self.cur.execute("INSERT INTO nfts(nft_name, based_on, current_owner, guild_id, symbol,"
+                         "image_url, last_checked, current_value) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
+                         (nft_name, based_on, self.user_id, self.guild_id, symbol.upper(), url, date.today(), value))
+        self.cur.execute("UPDATE users SET creating_power = creating_power - 1 WHERE user_id = %s", (self.user_id,))
+
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int) -> Union[None, User]:
     """
@@ -74,15 +82,3 @@ def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int) -> Union[None
     else:
         # TODO: Add logging that there is more than one user detected
         return None
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    db = mysql.connector.connect(
-        host=getenv("MYSQL_HOST"),
-        port=getenv("MYSQL_PORT"),
-        user=getenv("MYSQL_USER"),
-        password=getenv("MYSQL_PASSWORD"),
-        database="discord")
-
-    cursor = db.cursor()

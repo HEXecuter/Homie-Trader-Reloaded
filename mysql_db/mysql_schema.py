@@ -40,10 +40,11 @@ def create_schema(cur: CMySQLCursor):
                 "based_on BIGINT UNSIGNED NOT NULL, "
                 "current_owner INTEGER UNSIGNED NOT NULL, "
                 "guild_id BIGINT UNSIGNED NOT NULL, "
-                "ticker VARCHAR(10) NOT NULL, "
-                "image_url VARCHAR(100) NOT NULL, "
+                "symbol VARCHAR(10) NOT NULL, "
+                "image_url VARCHAR(150) NOT NULL, "
                 "last_checked DATE NOT NULL DEFAULT (CURRENT_DATE), "
                 "current_value DECIMAL(20, 2) NOT NULL,"
+                "percent_change DECIMAL(20, 2) DEFAULT 0.0,"
                 "FOREIGN KEY(current_owner) REFERENCES users(user_id)"
                 ")")
     list(cur.execute("CREATE INDEX nfts_based_on_idx ON nfts(based_on);"

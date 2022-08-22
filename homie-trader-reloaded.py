@@ -3,12 +3,16 @@ from os import getenv
 from nextcord.ext import commands
 import nextcord
 from datetime import datetime, date, timedelta
-from random import randint, choice
+from random import randint, choice, uniform
 from mysql_db.discordmodels import get_user, User
 from mysql_db.mysql_schema import create_schema
 import mysql.connector
 from homie_assets import movies
 from decimal import Decimal
+import finnhub
+from asyncio import sleep
+from PIL import Image
+from io import BytesIO
 
 load_dotenv()
 
@@ -22,6 +26,8 @@ db = mysql.connector.connect(
 cur = db.cursor()
 create_schema(cur)
 db.commit()
+
+finn = finnhub.Client(getenv("FINN_TOKEN"))
 
 # Setup Bot and gain access to guild member information
 TOKEN = getenv("DISCORD_TOKEN")
@@ -38,8 +44,8 @@ def seconds_until_midnight():
 async def account_not_found_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Create an Account First", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
-        f"You need to create an account before you can use this command. Use the `/create_account [pet_name]` " \
-        f"command to get started. Make sure to include your pet's name! :grin: "
+                           f"You need to create an account before you can use this command. Use the `/create_account [pet_name]` " \
+                           f"command to get started. Make sure to include your pet's name! :grin: "
     response.set_thumbnail("https://i.kym-cdn.com/photos/images/facebook/001/083/714/6f5.jpg")
     await interaction.response.send_message(embed=response)
 
@@ -47,9 +53,17 @@ async def account_not_found_response(interaction: nextcord.Interaction):
 async def job_not_found_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Apply for a Job First", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
-        f"You need to get a job before you can use this command. Use the `/job apply [job_title] [company_name]` "
+                           f"You need to get a job before you can use this command. Use the `/job apply [job_title] [company_name]` "
     response.set_thumbnail("https://preview.redd.it/4naeoad970351.jpg?auto=webp&s="
                            "8382476bcdc1ff875a65b9650af3915f42f26854")
+    await interaction.response.send_message(embed=response)
+
+
+async def wrong_file_type_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="Wrong File Type", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"This is not a supported image type. Supply a `JPG` or `PNG`!"
+    response.set_thumbnail("https://i.pinimg.com/564x/96/3b/e6/963be6d5b60feec95a39ced9ea85f907.jpg")
     await interaction.response.send_message(embed=response)
 
 
@@ -59,9 +73,54 @@ async def paycheck_already_redeemed_response(interaction: nextcord.Interaction):
     response.description = f"{interaction.user.display_name},\n" \
                            f"You already got paid today. It ain't my fault you're broke! Wait until tomorrow to " \
                            f"receive your next paycheck. In the meantime, you can watch {selected_movie} " \
-                           f"{seconds_until_midnight()/ movies[selected_movie]['duration']:.4f} times!"
+                           f"{seconds_until_midnight() / movies[selected_movie]['duration']:.4f} times!"
     response.set_image(movies[selected_movie]["image"])
     await interaction.response.send_message(embed=response)
+
+
+async def no_nft_channel_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="No NFT Text Channel Found", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"There is no NFT channel on this server. Please create " \
+                           f"a text channel with the words `nft` and `museum`. " \
+                           f"Make sure I have access to the channel. If you " \
+                           f"are a peasant without admin rights, get an admin to help."
+    response.set_image("https://i.kym-cdn.com/photos/images/original/001/761/805/b8c.jpg")
+    await interaction.response.send_message(embed=response)
+
+
+async def invalid_symbol_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="Invalid Stock Symbol Entered", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"That stock symbol does not exist. Use the following website to " \
+                           f"search for US based stock symbols. https://stockanalysis.com/stocks/"
+    response.set_image("https://i.kym-cdn.com/photos/images/original/000/509/739/490.jpg")
+    await interaction.followup.send(embed=response)
+
+
+def get_nft_channel(interaction: nextcord.Interaction):
+    for text_channel in interaction.guild.channels[0].channels:
+        if 'nft' in text_channel.name.lower() and 'museum' in text_channel.name.lower():
+            return text_channel
+    else:
+        return None
+
+
+async def creating_power_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="You Already Made an NFT", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"You already made an NFT for this channel and can not make any more. " \
+                           f"If you would like to mint another NFT, that's too bad."
+    response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
+    await interaction.followup.send(embed=response)
+
+
+async def nft_exists_response(interaction: nextcord.Interaction, username):
+    response = nextcord.Embed(title=f"{username} Already Has an NFT", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"{username} already has an NFT named after them. Find another person to clown on!"
+    response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
+    await interaction.followup.send(embed=response)
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -173,6 +232,97 @@ async def paycheck(interaction: nextcord.Interaction):
         response.add_field(name="Account Balance", value=f"```\n${user_obj.buying_power:,.2f}\n```", inline=False)
         response.add_field(name=f"Job Title", value=f"```\n{user_obj.job_title}\n```", inline=False)
         response.add_field(name=f"Company Name", value=f"```\n{user_obj.company_name}\n```", inline=False)
+        response.set_thumbnail("https://i.kym-cdn.com/photos/images/facebook/001/749/973/f9e.jpg")
         await interaction.response.send_message(embed=response)
+        db.commit()
+
+
+@bot.slash_command()
+async def nft(interaction: nextcord.Interaction):
+    """Main command for NFT related sub-commands"""
+    pass
+
+
+@nft.subcommand()
+async def mint(interaction: nextcord.Interaction,
+               nft_name: str = nextcord.SlashOption(min_length=3, max_length=32),
+               based_on: nextcord.Member = nextcord.SlashOption(required=True),
+               stock_symbol: str = nextcord.SlashOption(min_length=1, max_length=6),
+               image: nextcord.Attachment = nextcord.SlashOption(required=True)):
+    """use this command to apply for your ✨first and only job✨
+
+    Parameters
+    _____________
+    nft_name: str
+        The name of your NFT
+    based_on: str
+        A member of the server nft will be based on
+    stock_symbol: str
+        The stock symbol the NFT will be based on Ex: TSLA for Tesla Inc.
+    image:
+        Image that will be your NFT (SQUARE IMAGES WORK BEST)
+    """
+    await interaction.response.defer()
+    stock_symbol = stock_symbol.replace("$", "")
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+
+    if image.content_type not in ('image/jpeg', 'image/jpg', 'image/png'):
+        await wrong_file_type_response(interaction)
+        return
+
+    # Check NFT already exist for user
+    if user_obj.nft_exists(based_on.id):
+        await nft_exists_response(interaction, based_on.display_name)
+        return
+
+    if user_obj.creating_power < 1:
+        await creating_power_response(interaction)
+        return
+
+    nft_channel = get_nft_channel(interaction)  # If there is no dedicated NFT channel
+    if nft_channel is None:
+        await no_nft_channel_response(interaction)
+        return
+
+    image_storage = bot.get_partial_messageable(1011084374126624820)
+    await sleep(1)  # I only have 60 API calls per minute :(
+    stock_change = finn.quote(stock_symbol.upper())["dp"]
+    if stock_change is None:
+        await invalid_symbol_response(interaction)
+        return
+    value = round(uniform(1, 100), 2)
+    image_byte = BytesIO(await image.read())
+    final_image = BytesIO()
+    Image.open(image_byte).resize((500, 500), Image.Resampling.LANCZOS).save(final_image, "PNG")
+    final_image.seek(0)
+    image_url = await image_storage.send(content=f"Created by: {interaction.user.display_name} \n"
+                                                 f"From: {interaction.guild.name}",
+                                         file=nextcord.File(fp=final_image, filename=f'{nft_name}.png'))
+    image_url = image_url.attachments[0].url
+    user_obj.create_nft(nft_name, based_on.id, stock_symbol, image_url, Decimal(value))
+    description = f"@here {interaction.user.display_name} has successfully minted a new NFT based on " \
+                  f"{based_on.display_name}. ```\nThis NFT is utilizing the ${stock_symbol.upper()} stock symbol " \
+                  f"and has its Initial Public Offering set to ${value:,.2f}. \n```You can buy this NFT using \n" \
+                  f"`/purchase stock {based_on.display_name} [AMOUNT]`"
+    nft_embed = nextcord.Embed(title=f"New NFT {nft_name} has been created!", description=description, color=0x00e1ff)
+    nft_embed.add_field(name="Name", value=f"```\n{nft_name}\n```", inline=True)
+    nft_embed.add_field(name="IPO Value", value=f"```\n${value:,.2f}\n```", inline=True)
+    nft_embed.add_field(name="Stock Symbol", value=f"```\n${stock_symbol}\n```", inline=True)
+    nft_embed.add_field(name="Created By", value=f"{interaction.user.mention}", inline=True)
+    nft_embed.add_field(name="Based On", value=f"{based_on.mention}", inline=True)
+    nft_embed.set_image(url=image_url)
+    nft_message = await nft_channel.send(embed=nft_embed)
+    db.commit()
+    response = nextcord.Embed(title="New NFT Created", color=0x00e1ff)
+    response.description = f"`Use the following link to view the NFT`\n" \
+                           f"{nft_message.jump_url}"
+    response.set_thumbnail("https://i.kym-cdn.com/photos/images/newsfeed/000/191/809/"
+                           "me_gusta_mucho_by_megustamuchoplz-d416uqk.png?1319690633")
+    await interaction.followup.send(embed=response)
+
 
 bot.run(TOKEN)
