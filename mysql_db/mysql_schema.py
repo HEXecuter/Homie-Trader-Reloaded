@@ -17,7 +17,7 @@ def create_schema(cur: CMySQLCursor):
                          "DROP TABLE IF EXISTS portfolio;"
                          "DROP TABLE IF EXISTS users;",
                          multi=True))
-    # TODO: Add foreign keys
+
     cur.execute("CREATE TABLE IF NOT EXISTS users("
                 "user_id INTEGER UNSIGNED PRIMARY KEY AUTO_INCREMENT, "
                 "discord_id BIGINT UNSIGNED NOT NULL, "
@@ -67,20 +67,14 @@ def create_schema(cur: CMySQLCursor):
                 "FOREIGN KEY (owner_id) REFERENCES users(user_id)"
                 ")")
 
-    cur.execute("CREATE TABLE IF NOT EXISTS industries("
-                "industry_id INTEGER UNSIGNED PRIMARY KEY AUTO_INCREMENT, "
-                "industry_name VARCHAR(100)"
-                ")")
-
     cur.execute("CREATE TABLE IF NOT EXISTS multipliers("
                 "owner_id INTEGER UNSIGNED NOT NULL, "
                 "stat_multiplier DECIMAL(20, 2) NOT NULL, "
-                "degree_type VARCHAR(10) NOT NULL, "
-                "industry_id INTEGER UNSIGNED NOT NULL,"
-                "FOREIGN KEY (owner_id) REFERENCES users(user_id),"
-                "FOREIGN KEY (industry_id) REFERENCES industries(industry_id)"
+                "amount INTEGER NOT NULL DEFAULT 0, "
+                "degree_type VARCHAR(32) NOT NULL, "
+                "industry_index INTEGER UNSIGNED NOT NULL,"
+                "FOREIGN KEY (owner_id) REFERENCES users(user_id)"
                 ")")
-    cur.execute("CREATE INDEX multipliers_industry_id_idx ON multipliers(industry_id);")
 
     cur.close()
 

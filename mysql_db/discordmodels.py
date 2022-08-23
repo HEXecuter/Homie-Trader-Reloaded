@@ -20,7 +20,7 @@ class User:
 
     def new_job(self, job_title: str, company_name: str):
         if self.job_title is None:  # If first job, make sure they can get paycheck today
-            self.cur.execute("UPDATE users SET paycheck_redeemed = '2018-12-31'")
+            self.cur.execute("UPDATE users SET paycheck_redeemed = '2018-12-31' WHERE user_id = %s", (self.user_id,))
         self.cur.execute("UPDATE users SET job_title = %s, company_name = %s WHERE user_id = %s",
                          (job_title, company_name, self.user_id))
         self.job_title = job_title
@@ -34,8 +34,9 @@ class User:
         if self.paycheck_redeemed == date.today():
             return None  # TODO: Log that some how command bypassed initial check
         paycheck_amount = Decimal("100") * (Decimal("1") + self.get_multipliers())
-        self.cur.execute("UPDATE users SET buying_power = buying_power + %s", (paycheck_amount,))
-        self.cur.execute("UPDATE users SET paycheck_redeemed = %s", (date.today(),))
+        self.cur.execute("UPDATE users SET buying_power = buying_power + %s WHERE user_id = %s", (paycheck_amount,
+                                                                                                  self.user_id))
+        self.cur.execute("UPDATE users SET paycheck_redeemed = %s WHERE user_id = %s", (date.today(), self.user_id))
         return paycheck_amount
 
     @property
@@ -62,6 +63,14 @@ class User:
                          "image_url, last_checked, current_value) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
                          (nft_name, based_on, self.user_id, self.guild_id, symbol.upper(), url, date.today(), value))
         self.cur.execute("UPDATE users SET creating_power = creating_power - 1 WHERE user_id = %s", (self.user_id,))
+
+    def add_modifier(self, final_multiplier, amount, degree_type, industry_index):
+        self.cur.execute("INSERT INTO multipliers(owner_id, stat_multiplier, amount, degree_type, industry_index) "
+                         "VALUES(%s, %s, %s, %s, %s)",
+                         (self.user_id, final_multiplier, amount, degree_type, industry_index))
+
+    def charge_user(self, amount):
+        self.cur.execute("UPDATE users SET buying_power = buying_power - %s WHERE user_id = %s", (amount, self.user_id))
 
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int) -> Union[None, User]:

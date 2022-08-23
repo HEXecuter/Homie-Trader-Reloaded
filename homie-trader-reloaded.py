@@ -124,6 +124,15 @@ async def nft_exists_response(interaction: nextcord.Interaction, username):
     await interaction.followup.send(embed=response)
 
 
+async def too_poor_response(interaction: nextcord.Interaction, total_cost):
+    response = nextcord.Embed(title=f"{interaction.user.display_name} is Poor!", color=0x00e1ff)
+    response.description = f"@here " \
+                           f"{interaction.user.mention} just tried to buy something and he could not afford it " \
+                           f"because he is poor! Come back when you have `${total_cost:,.2f}`"
+    response.set_image("https://i.kym-cdn.com/entries/icons/mobile/000/029/831/spongebobmeme.jpg")
+    await interaction.response.send_message(embed=response)
+
+
 @bot.slash_command(guild_ids=[868296265564319774])
 async def create_account(interaction: nextcord.Interaction,
                          pet_name: str = nextcord.SlashOption(min_length=2, max_length=32)):
@@ -271,6 +280,8 @@ async def mint(interaction: nextcord.Interaction,
         await account_not_found_response(interaction)
         return
 
+    # TODO: Check for square-ish image
+
     if image.content_type not in ('image/jpeg', 'image/jpg', 'image/png'):
         await wrong_file_type_response(interaction)
         return
@@ -326,6 +337,11 @@ async def mint(interaction: nextcord.Interaction,
     await interaction.followup.send(embed=response)
 
 
+@nft.subcommand()
+async def info(interaction: nextcord.Interaction):
+    pass
+
+
 @bot.slash_command()
 async def purchase(interaction: nextcord.Interaction):
     """Main command for purchase related subcommands"""
@@ -333,12 +349,48 @@ async def purchase(interaction: nextcord.Interaction):
 
 
 @purchase.subcommand()
-async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.SlashOption(choices=degrees.keys())):
-    pass
+async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.SlashOption(choices=degrees.keys()),
+                 amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
+    """Use this command to ✨bribe✨ a school official into giving you a degree
 
+    Parameters
+    _____________
+    degree_type:
+        Choose from the list of options, more expensive degrees provide better returns
+    amount:
+        The amount of degrees you want to purchase
+    """
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+
+    total_cost = degrees[degree_type]["price"] * amount
+    if user_obj.buying_power < total_cost:
+        await too_poor_response(interaction, total_cost)
+        return
+
+    multiplier = degrees[degree_type]["stat"] * amount
+    friendly_name = degrees[degree_type]["friendly_name"]
+    industry = choice(range(len(majors)))
+
+    user_obj.charge_user(total_cost)
+    user_obj.add_modifier(multiplier, amount, degree_type, industry)
+
+    response = nextcord.Embed(title="New Modifiers Purchased!", color=0x00e1ff)
+    response.description = f"Congratulations on all the hard work it took to get {amount} {friendly_name}! " \
+                           f"Your paycheck has now gone up!"
+    response.add_field(name=f"Total Cost", value=f"```\n${total_cost:,.2f}\n```", inline=True)
+    response.add_field(name=f"Account Balance", value=f"```\n${user_obj.buying_power:,.2f}\n```", inline=True)
+    response.add_field(name=f"Degree Major", value=f"```\n{majors[industry]}\n```", inline=False)
+    response.set_thumbnail(bot.user.avatar.url)
+    await interaction.response.send_message(embed=response)
+    db.commit()
 
 @purchase.subcommand()
 async def stock(interaction: nextcord.Interaction, user: nextcord.Member):
     pass
+
 
 bot.run(TOKEN)
