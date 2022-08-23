@@ -2,11 +2,24 @@ from mysql.connector.cursor_cext import CMySQLCursor  # Just for type hinting
 from decimal import Decimal
 from typing import Union
 from datetime import date
+import finnhub
+
+
+class Nft:
+
+    def __init__(self, cur: CMySQLCursor, nft_id):
+        self.cur = cur
+        self.id = nft_id
+        self.cur.execute("SELECT * FROM nfts WHERE nft_id = %s", (self.id,))
+        _, self.name, self.based_on, self.current_owner, self.guild_id, self.symbol, self.image, self.last_checked, \
+            self.current_value, self.percent_change = self.cur.fetchone()
 
 
 class User:
 
-    def __init__(self, cur: CMySQLCursor, discord_id: int, guild_id: int):
+    def __init__(self, cur: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, change_mul):
+        self.change_mul = Decimal(change_mul)
+        self.finn = finn
         self.cur = cur
         cur.execute("SELECT * FROM users WHERE discord_id = %s AND guild_id = %s LIMIT 1",
                     (discord_id, guild_id))
@@ -45,13 +58,14 @@ class User:
         return self.cur.fetchone()[0]
 
     @classmethod
-    def create_user(cls, cur: CMySQLCursor, discord_id: int, guild_id: int, pet_name: str) -> "User":
+    def create_user(cls, cur: CMySQLCursor, discord_id: int, guild_id: int, pet_name: str, finn: finnhub.Client,
+                    mult: str) -> "User":
         cur.execute("INSERT INTO users(discord_id, guild_id, buying_power, creating_power) "
                     "VALUES(%s, %s, %s, %s)", (discord_id, guild_id, Decimal("1000.00"), 1))
         cur.execute("INSERT INTO pets VALUES("
                     "(SELECT user_id FROM users WHERE discord_id = %s AND guild_id = %s LIMIT 1),"
                     "%s, %s, DEFAULT, DEFAULT)", (discord_id, guild_id, guild_id, pet_name))
-        return cls(cur, discord_id, guild_id)
+        return cls(cur, discord_id, guild_id, finn, mult)
 
     def nft_exists(self, based_on_id):
         self.cur.execute("SELECT COUNT(*) FROM nfts WHERE based_on = %s AND guild_id = %s",
@@ -72,20 +86,55 @@ class User:
     def charge_user(self, amount):
         self.cur.execute("UPDATE users SET buying_power = buying_power - %s WHERE user_id = %s", (amount, self.user_id))
 
+    def get_nft_id(self, based_on_id):
+        self.cur.execute("SELECT nft_id FROM nfts WHERE based_on = %s AND guild_id = %s",
+                         (based_on_id, self.guild_id))
+        return self.cur.fetchone()[0]
 
-def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int) -> Union[None, User]:
+    # TODO: If I sell all NFTs I have to delete row
+    def nft_owned_amount(self, nft_id):
+        self.cur.execute("SELECT IFNULL((SELECT amount_owned FROM portfolio WHERE nft_id = %s AND owner_id = %s), 0)",
+                         (nft_id, self.user_id))
+        return self.cur.fetchone()[0]
+
+    def get_nft_cost(self, nft_id):
+        self.cur.execute("SELECT last_checked, current_value, symbol FROM nfts WHERE nft_id = %s", (nft_id,))
+        last_checked, current_value, symbol = self.cur.fetchone()
+        today = date.today()
+        if last_checked == today:
+            return current_value
+        else:
+            change = self.finn.quote(symbol)["dp"]
+            percent_change = (self.change_mul * (Decimal(round(change, 2))/100))
+            current_value = current_value * (1 + percent_change)
+            self.cur.execute("UPDATE nfts SET "
+                             "current_value = %s, percent_change = %s, last_checked = %s WHERE nft_id = %s",
+                             (current_value, percent_change, today, nft_id))
+            return current_value
+
+    def purchase_nft(self, nft_id, amount):
+        if self.nft_owned_amount(nft_id) == 0:
+            self.cur.execute("INSERT INTO portfolio VALUES(%s, %s, %s)", (self.user_id, nft_id, amount))
+        else:
+            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned + %s WHERE owner_id = %s AND nft_id = %s",
+                             (amount, self.user_id, nft_id))
+
+
+def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:
     """
     Returns User() object if user is found, else returns None
     :param cursor: MySQL Cursor Object
     :param discord_id: Integer that represents discord user id
     :param guild_id:  Integer that represents guild id
+    :param finn: Finnhub Client
+    :param mult: String representing volatility multiplier
     :return: Returns User object if user exists, else returns None
     """
     cursor.execute("SELECT COUNT(*) FROM users WHERE  discord_id = %s AND guild_id = %s LIMIT 1",
                    (discord_id, guild_id))
     number_of_users = cursor.fetchone()[0]
     if number_of_users == 1:
-        return User(cursor, discord_id, guild_id)
+        return User(cursor, discord_id, guild_id, finn, mult)
     elif number_of_users == 0:
         return None
     else:

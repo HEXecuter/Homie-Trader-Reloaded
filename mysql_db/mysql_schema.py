@@ -10,11 +10,11 @@ def create_schema(cur: CMySQLCursor):
     if DEBUG == "1":
         # Using multi=True returns a generator of cursor objects, this will cause a command out of sync error
         # unless the generator is cleared before the next execute
-        list(cur.execute("DROP TABLE IF EXISTS nfts;"
+        list(cur.execute("DROP TABLE IF EXISTS portfolio;"
+                         "DROP TABLE IF EXISTS nfts;"
                          "DROP TABLE IF EXISTS pets;"
                          "DROP TABLE IF EXISTS multipliers;"
                          "DROP TABLE IF EXISTS industries;"
-                         "DROP TABLE IF EXISTS portfolio;"
                          "DROP TABLE IF EXISTS users;",
                          multi=True))
 
@@ -28,11 +28,7 @@ def create_schema(cur: CMySQLCursor):
                 "job_title VARCHAR(32), "
                 "company_name VARCHAR(32))"
                 "")
-    # Using multi=True returns a generator of cursor objects, this will cause a command out of sync error
-    # unless the generator is cleared before the next execute
-    list(cur.execute("CREATE INDEX users_discord_id_idx ON users(discord_id);"
-                     "CREATE INDEX users_guild_id_idx ON users(guild_id);",
-                     multi=True))
+
 
     cur.execute("CREATE TABLE IF NOT EXISTS nfts("
                 "nft_id INTEGER UNSIGNED PRIMARY KEY AUTO_INCREMENT, "
@@ -47,9 +43,7 @@ def create_schema(cur: CMySQLCursor):
                 "percent_change DECIMAL(20, 2) DEFAULT 0.0,"
                 "FOREIGN KEY(current_owner) REFERENCES users(user_id)"
                 ")")
-    list(cur.execute("CREATE INDEX nfts_based_on_idx ON nfts(based_on);"
-                     "CREATE INDEX nfts_guild_id_idx ON nfts(guild_id);",
-                     multi=True))
+
 
     cur.execute("CREATE TABLE IF NOT EXISTS pets("
                 "owner_id INTEGER UNSIGNED NOT NULL,"
@@ -64,7 +58,8 @@ def create_schema(cur: CMySQLCursor):
                 "owner_id INTEGER UNSIGNED NOT NULL, "
                 "nft_id INTEGER UNSIGNED NOT NULL, "
                 "amount_owned BIGINT UNSIGNED NOT NULL,"
-                "FOREIGN KEY (owner_id) REFERENCES users(user_id)"
+                "FOREIGN KEY (owner_id) REFERENCES users(user_id),"
+                "FOREIGN KEY (nft_id) REFERENCES nfts(nft_id)"
                 ")")
 
     cur.execute("CREATE TABLE IF NOT EXISTS multipliers("
@@ -75,6 +70,19 @@ def create_schema(cur: CMySQLCursor):
                 "industry_index INTEGER UNSIGNED NOT NULL,"
                 "FOREIGN KEY (owner_id) REFERENCES users(user_id)"
                 ")")
+
+    # Check if indexes exist
+    cur.execute("SELECT COUNT(*) FROM information_schema.statistics WHERE "
+                "table_schema = DATABASE() AND index_name = \"users_discord_id_idx\"")
+    if cur.fetchone()[0] == 0:
+        # Using multi=True returns a generator of cursor objects, this will cause a command out of sync error
+        # unless the generator is cleared before the next execute
+        list(cur.execute("CREATE INDEX users_discord_id_idx ON users(discord_id);"
+                         "CREATE INDEX users_guild_id_idx ON users(guild_id);",
+                         multi=True))
+        list(cur.execute("CREATE INDEX nfts_based_on_idx ON nfts(based_on);"
+                         "CREATE INDEX nfts_guild_id_idx ON nfts(guild_id);",
+                         multi=True))
 
     cur.close()
 
