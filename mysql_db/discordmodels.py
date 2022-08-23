@@ -119,6 +119,13 @@ class User:
             self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned + %s WHERE owner_id = %s AND nft_id = %s",
                              (amount, self.user_id, nft_id))
 
+    def sell_nft(self, nft_id, amount_sold, amount_owned):
+        if amount_sold == amount_owned:
+            self.cur.execute("DELETE FROM portfolio WHERE owner_id = %s AND nft_id = %s", (self.user_id, nft_id))
+        else:
+            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned - %s WHERE owner_id = %s AND nft_id = %s",
+                             (amount_sold, self.user_id, nft_id))
+
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:
     """

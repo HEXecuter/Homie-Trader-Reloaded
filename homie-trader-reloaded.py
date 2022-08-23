@@ -9,8 +9,8 @@ from mysql_db.mysql_schema import create_schema
 import mysql.connector
 from homie_assets import movies, degrees, majors
 from decimal import Decimal
+# Change Finnhub to aiohttp
 import finnhub
-from asyncio import sleep
 from PIL import Image
 from io import BytesIO
 
@@ -27,7 +27,7 @@ cur = db.cursor()
 create_schema(cur)
 db.commit()
 
-finn = finnhub.Client(getenv("FINN_TOKEN"))
+
 volatility_multiplier = getenv("VOLATILITY_MULTIPLIER")
 
 # Setup Bot and gain access to guild member information
@@ -173,6 +173,19 @@ async def too_poor_response(interaction: nextcord.Interaction, total_cost):
         await interaction.response.send_message(embed=response)
 
 
+async def not_enough_owned_response(interaction: nextcord.Interaction, amount_needed, amount_owned):
+    response = nextcord.Embed(title=f"You Don't Own Enough of That NFT!", color=0x00e1ff)
+    response.description = f"Sorry {interaction.user.display_name}, I ain't takin' yo' yee-yee ahh credit." \
+                           f" Come around my crib again when you a little.. mmm, pimpin'."
+    response.add_field(name=f"Amount Owned", value=f"```\n{amount_owned:,}\n```", inline=True)
+    response.add_field(name=f"Amount Needed", value=f"```\n{amount_needed:,}\n```", inline=True)
+    response.set_image("https://i.kym-cdn.com/photos/images/newsfeed/002/010/016/a14.png")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+
 @bot.slash_command(guild_ids=[868296265564319774])
 async def create_account(interaction: nextcord.Interaction,
                          pet_name: str = nextcord.SlashOption(min_length=2, max_length=32)):
@@ -183,6 +196,7 @@ async def create_account(interaction: nextcord.Interaction,
     pet_name: str
         The name of your ✨adorable✨ pet 😉
     """
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
     # Check if user already has an account, create one if they do not
@@ -238,6 +252,7 @@ async def apply(interaction: nextcord.Interaction, job_title: str = nextcord.Sla
     company_name: str
         The name of the company you want to apply to
     """
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
     # Check if user already has an account, create one if they do not
@@ -263,6 +278,7 @@ async def apply(interaction: nextcord.Interaction, job_title: str = nextcord.Sla
 @job.subcommand()
 async def paycheck(interaction: nextcord.Interaction):
     """Use this command to ✨get paid✨ daily"""
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
     if user_obj is None:  # If user does not have an account
@@ -314,6 +330,7 @@ async def mint(interaction: nextcord.Interaction,
         Image that will be your NFT (SQUARE IMAGES WORK BEST)
     """
     await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     stock_symbol = stock_symbol.replace("$", "").upper()
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
@@ -342,7 +359,6 @@ async def mint(interaction: nextcord.Interaction,
         return
 
     image_storage = bot.get_partial_messageable(1011084374126624820)
-    await sleep(1)  # I only have 60 API calls per minute :(
     stock_change = finn.quote(stock_symbol)["dp"]
     if stock_change is None:
         await invalid_symbol_response(interaction)
@@ -401,6 +417,7 @@ async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.
     amount:
         The amount of degrees you want to purchase
     """
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
     if user_obj is None:  # If user does not have an account
@@ -433,7 +450,17 @@ async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.
 @purchase.subcommand()
 async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
                 amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
+    """Use this command to purchase an NFT
+
+        Parameters
+        _____________
+        based_on:
+            The user the NFT is based on
+        amount:
+            The amount of NFTs you want to purchase
+        """
     await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
     if user_obj is None:  # If user does not have an account
@@ -450,7 +477,6 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
     if user_obj.buying_power < total_cost:
         await too_poor_response(interaction, total_cost)
         return
-
     user_obj.purchase_nft(nft_id, amount)
     user_obj.charge_user(total_cost)
     nft_obj = Nft(cursor, nft_id)
@@ -466,5 +492,54 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
                            "Screen_Shot_2019-06-05_at_1.26.32_PM.jpg")
     await interaction.followup.send(embed=response)
     db.commit()
+
+
+@bot.slash_command(guild_ids=[868296265564319774])
+async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
+                amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
+    """Use this command to sell an NFT
+
+        Parameters
+        _____________
+        based_on:
+            The user the NFT is based on
+        amount:
+            The amount of NFTs you want to purchase
+        """
+    await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+    # Check NFT already exist for user
+    if not user_obj.nft_exists(based_on.id):
+        await nft_not_exists_response(interaction, based_on.display_name)
+        return
+
+    nft_id = user_obj.get_nft_id(based_on.id)
+    nft_price = user_obj.get_nft_cost(nft_id)
+    total_cost = nft_price * amount
+    nft_amount_owned = user_obj.nft_owned_amount(nft_id)
+    if nft_amount_owned < amount:
+        await not_enough_owned_response(interaction, amount, nft_amount_owned)
+        return
+    user_obj.sell_nft(nft_id, amount, nft_amount_owned)
+    user_obj.charge_user(-total_cost)
+    nft_obj = Nft(cursor, nft_id)
+    response = nextcord.Embed(title=f"Panic Sold {nft_obj.name} Stonks")
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"`You have successfully panic sold the NFT based on {based_on.display_name}`"
+    response.add_field(name=f"Amount Sold", value=f"```\n{amount:,}\n```", inline=True)
+    response.add_field(name=f"Price per Unit", value=f"```\n${nft_price:,.2f}\n```", inline=True)
+    response.add_field(name=f"NFT Name", value=f"```\n{nft_obj.name}\n```", inline=False)
+    response.add_field(name=f"Account Balance", value=f"```\n${user_obj.buying_power:,.2f}\n```", inline=False)
+    response.add_field(name=f"NFT Symbol", value=f"```\n${nft_obj.symbol}\n```", inline=False)
+    response.set_thumbnail("https://i.kym-cdn.com/entries/icons/mobile/000/022/017/thumb.jpg")
+    await interaction.followup.send(embed=response)
+    db.commit()
+
+
 
 bot.run(TOKEN)
