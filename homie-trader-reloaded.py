@@ -54,6 +54,17 @@ async def account_not_found_response(interaction: nextcord.Interaction):
         await interaction.response.send_message(embed=response)
 
 
+async def target_not_found_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="User does not Have an Account", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"The user you specified does not have a Homie Trader account."
+    response.set_thumbnail("https://i.kym-cdn.com/photos/images/facebook/001/083/714/6f5.jpg")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+
 async def pet_not_found_response(interaction: nextcord.Interaction, user_name):
     response = nextcord.Embed(title=f"{user_name} does not Have a Pet to Steal", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
@@ -159,6 +170,13 @@ def get_nft_channel(interaction: nextcord.Interaction):
     else:
         return None
 
+def get_role(interaction: nextcord.Interaction, role_name):
+    for role in interaction.guild.roles:
+        if role_name == role.name:
+            return role
+    else:
+        return None
+
 
 async def creating_power_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="You Already Made an NFT", color=0x00e1ff)
@@ -171,10 +189,11 @@ async def creating_power_response(interaction: nextcord.Interaction):
     else:
         await interaction.response.send_message(embed=response)
 
+
 async def image_not_square_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Upload a More Square-ish Image", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
-                           f"This image is not squarish enough. Crop it to be closer to a square."
+                           f"This image is not square-ish enough. Crop it to be closer to a square."
     response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
     if interaction.response.is_done():
         await interaction.followup.send(embed=response)
@@ -438,12 +457,18 @@ async def mint(interaction: nextcord.Interaction,
                                          file=nextcord.File(fp=final_image, filename=f'{nft_name}.png'))
     image_url = image_url.attachments[0].url
     user_obj.create_nft(nft_name, based_on.id, stock_symbol, image_url, Decimal(value))
+
+    role = get_role(interaction, f"${stock_symbol} Homie")
+    if role is None:
+        role = await interaction.guild.create_role(name=f"${stock_symbol} Homie", color=0x00e1ff, reason="NFT Creation")
+    await based_on.add_roles(role, reason="NFT Creation")
+
     description = f"@here {interaction.user.display_name} has successfully minted a new NFT based on " \
                   f"{based_on.display_name}. ```\nThis NFT is utilizing the ${stock_symbol.upper()} stock symbol " \
                   f"and has its Initial Public Offering set to ${value:,.2f}. \n```You can buy this NFT using \n" \
                   f"`/purchase stock {based_on.display_name} [AMOUNT]`"
     nft_embed = nextcord.Embed(title=f"New NFT {nft_name} has been created!", description=description, color=0x00e1ff)
-    nft_embed.add_field(name="Name", value=f"```\n{nft_name}\n```", inline=False)
+    nft_embed.add_field(name="Name", value=f"```\n{nft_name}\n```", inline=True)
     nft_embed.add_field(name="IPO Value", value=f"```\n${value:,.2f}\n```", inline=True)
     nft_embed.add_field(name="Stock Symbol", value=f"```\n${stock_symbol}\n```", inline=True)
     nft_embed.add_field(name="Created By", value=f"{interaction.user.mention}", inline=True)
@@ -609,7 +634,7 @@ async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Memb
 
 @bot.slash_command(guild_ids=[868296265564319774])
 async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
-                amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
+                     amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
     """Use this command to sell an NFT
 
         Parameters
@@ -652,5 +677,41 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
     response.set_thumbnail("https://i.kym-cdn.com/entries/icons/mobile/000/022/017/thumb.jpg")
     await interaction.followup.send(embed=response)
     db.commit()
+
+
+@bot.slash_command(guild_ids=[868296265564319774])
+async def portfolio(interaction: nextcord.Interaction, user: nextcord.Member):
+    await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
+    target_obj = get_user(cursor, user.id, user.guild.id, finn, volatility_multiplier)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+    if target_obj is None:
+        await target_not_found_response(interaction)
+        return
+    response = nextcord.Embed(title=f"{user.display_name} Portfolio", color=0x00e1ff)
+    portfolio_value = user_obj.get_portfolio_value()
+    response.add_field(name=f"{target_obj.pet_name} Status", value=f"```\n{target_obj.pet_status}\n```", inline=True)
+    response.add_field(name=f"{target_obj.pet_name} Owner", value=f"<@{target_obj.pet_owner}>", inline=True)
+    if target_obj.job_title is None:
+        response.add_field(name=f"Job Title", value=f"```\nUnemployed\n```", inline=False)
+        response.add_field(name=f"Company Name", value=f"```\nUnemployed\n```", inline=False)
+    else:
+        response.add_field(name=f"Job Title", value=f"```\n{target_obj.job_title}\n```", inline=False)
+        response.add_field(name=f"Company Name", value=f"```\n{target_obj.company_name}\n```", inline=False)
+    for row in target_obj.get_top_stocks():
+        response.add_field(name=f"Symbol", value=f"```\n${row[0]}\n```", inline=True)
+        response.add_field(name=f"Total Value", value=f"```\n${row[1] * row[2]:,.2f}\n```", inline=True)
+        response.add_field(name=f"Based On", value=f"<@{row[3]}>", inline=True)
+        response.add_field(name=f"NFT Name", value=f"```\n{row[4]}\n```", inline=False)
+    response.add_field(name=f"Account Balance", value=f"```\n${target_obj.buying_power:,.2f}\n```", inline=False)
+    response.add_field(name=f"Portfolio Balance", value=f"```\n${portfolio_value:,.2f}\n```", inline=False)
+    await interaction.followup.send(embed=response)
+    db.commit()
+
+
 
 bot.run(TOKEN)

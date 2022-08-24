@@ -136,6 +136,21 @@ class User:
         self.cur.execute("UPDATE pets SET current_owner = %s, purchase_price = 200000 WHERE owner_id = %s",
                          (new_owner_disc_id, self.user_id))
 
+    def get_top_stocks(self):
+        self.cur.execute("SELECT COUNT(*) FROM portfolio WHERE owner_id = %s", (self.user_id,))
+        if self.cur.fetchone()[0] == 0:
+            return []
+        self.cur.execute("SELECT symbol, amount_owned, current_value, based_on, nft_name FROM portfolio "
+                         "JOIN nfts ON portfolio.nft_id = nfts.nft_id WHERE portfolio.owner_id = %s "
+                         "ORDER BY (amount_owned * current_value) LIMIT 5", (self.user_id,))
+        return self.cur.fetchall()
+
+    def get_portfolio_value(self):
+        total = Decimal("0")
+        self.cur.execute("SELECT nft_id, amount_owned FROM portfolio WHERE owner_id = %s", (self.user_id,))
+        for row in self.cur.fetchall():
+            total += self.get_nft_cost(row[0]) * row[1]
+        return total
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:
     """
