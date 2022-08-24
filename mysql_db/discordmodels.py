@@ -27,8 +27,8 @@ class User:
         self.user_id, self.discord_id, self.guild_id, _, self.paycheck_redeemed, \
             self.creating_power, self.job_title, self.company_name = cur.fetchone()
 
-        cur.execute("SELECT current_owner, pet_name FROM pets WHERE owner_id = %s", (self.user_id,))
-        self.pet_owner, self.pet_name = cur.fetchone()
+        cur.execute("SELECT current_owner, pet_name, purchase_price FROM pets WHERE owner_id = %s", (self.user_id,))
+        self.pet_owner, self.pet_name, self.pet_price = cur.fetchone()
         self.pet_status = "Safe for now" if self.pet_owner == self.discord_id else "Kidnapped"
 
     def new_job(self, job_title: str, company_name: str):
@@ -125,6 +125,10 @@ class User:
         else:
             self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned - %s WHERE owner_id = %s AND nft_id = %s",
                              (amount_sold, self.user_id, nft_id))
+
+    def pet_stolen(self, new_owner_disc_id):
+        self.cur.execute("UPDATE pets SET current_owner = %s, purchase_price = 200000 WHERE owner_id = %s",
+                         (new_owner_disc_id, self.user_id))
 
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:

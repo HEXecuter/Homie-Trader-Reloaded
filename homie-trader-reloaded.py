@@ -54,6 +54,29 @@ async def account_not_found_response(interaction: nextcord.Interaction):
         await interaction.response.send_message(embed=response)
 
 
+async def pet_not_found_response(interaction: nextcord.Interaction, user_name):
+    response = nextcord.Embed(title=f"{user_name} does not Have a Pet to Steal", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"{user_name} does not have a pet we can steal. Convince them to create an account first. " \
+                           f"Then we can hire someone to kidnap their dog."
+    response.set_thumbnail("https://wojakparadise.net/wojak/13382/img")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+
+async def pet_already_owned_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title=f"You Are Already in Possession of this Pet", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"You are already the owner of this. No need to steal from yourself."
+    response.set_thumbnail("https://wojakparadise.net/wojak/13382/img")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+
 async def job_not_found_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Apply for a Job First", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
@@ -164,8 +187,8 @@ async def nft_not_exists_response(interaction: nextcord.Interaction, username):
 async def too_poor_response(interaction: nextcord.Interaction, total_cost):
     response = nextcord.Embed(title=f"{interaction.user.display_name} is Poor!", color=0x00e1ff)
     response.description = f"@here " \
-                           f"{interaction.user.mention} just tried to buy something and he could not afford it " \
-                           f"because he is poor! Come back when you have `${total_cost:,.2f}`"
+                           f"{interaction.user.mention} just tried to buy something and they could not afford it " \
+                           f"because they are poor! Come back when you have `${total_cost:,.2f}`"
     response.set_image("https://i.kym-cdn.com/entries/icons/mobile/000/029/831/spongebobmeme.jpg")
     if interaction.response.is_done():
         await interaction.followup.send(embed=response)
@@ -184,6 +207,19 @@ async def not_enough_owned_response(interaction: nextcord.Interaction, amount_ne
         await interaction.followup.send(embed=response)
     else:
         await interaction.response.send_message(embed=response)
+
+
+async def too_poor_pet_response(interaction: nextcord.Interaction, total_cost, action):
+    response = nextcord.Embed(title=f"{interaction.user.display_name} is Poor!", color=0x00e1ff)
+    response.description = f"@here " \
+                           f"{interaction.user.mention} just tried to {action} and they could not afford it " \
+                           f"because they are poor! Come back when you have `${total_cost:,.2f}`"
+    response.set_image("https://i.kym-cdn.com/entries/icons/mobile/000/029/831/spongebobmeme.jpg")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -447,6 +483,7 @@ async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.
     db.commit()
 
 
+# TODO: Check if symbol is already in use
 @purchase.subcommand()
 async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
                 amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
@@ -480,7 +517,7 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
     user_obj.purchase_nft(nft_id, amount)
     user_obj.charge_user(total_cost)
     nft_obj = Nft(cursor, nft_id)
-    response = nextcord.Embed(title=f"Purchased {nft_obj.name} Stonks")
+    response = nextcord.Embed(title=f"Purchased {nft_obj.name} Stonks", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
                            f"`You have successfully purchased the NFT based on {based_on.display_name}`"
     response.add_field(name=f"Amount Purchased", value=f"```\n{amount:,}\n```", inline=True)
@@ -491,6 +528,53 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
     response.set_thumbnail("https://i.kym-cdn.com/entries/icons/mobile/000/029/959/"
                            "Screen_Shot_2019-06-05_at_1.26.32_PM.jpg")
     await interaction.followup.send(embed=response)
+    db.commit()
+
+
+@purchase.subcommand()
+async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Member):
+    """Use this command to hire a team of bandits to indefinitely borrow a pet
+
+    Parameters
+    _____________
+    pet_owner:
+        The owner who's pet you want to borrow
+    """
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
+    target_obj = get_user(cursor, pet_owner.id, pet_owner.guild.id, finn, volatility_multiplier)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+    if target_obj is None:
+        await pet_not_found_response(interaction, pet_owner.display_name)
+        return
+
+    if interaction.user.id == target_obj.pet_owner:
+        await pet_already_owned_response(interaction)
+        return
+
+    if user_obj.user_id == target_obj.user_id:
+        total_price = target_obj.pet_price
+        if user_obj.buying_power < total_price:
+            await too_poor_pet_response(interaction, total_price, f"rescue their own pet {user_obj.pet_name},")
+            return
+    else:
+        total_price = Decimal("200000")
+        if user_obj.buying_power < total_price:
+            await too_poor_pet_response(interaction, total_price, f"kidnap {pet_owner.mention} pet "
+                                                                  f"{target_obj.pet_name},")
+            return
+    user_obj.charge_user(total_price)
+    target_obj.pet_stolen(user_obj.discord_id)
+    response = nextcord.Embed(title=f"{target_obj.pet_name} Successfully Kidnapped", color=0x00e1ff)
+    response.description = f"The operation to kidnap {pet_owner.display_name}'s pet was a " \
+                           f"success. Stay vigilant to ensure they do not retaliate."
+    response.add_field(name=f"Kidnap Cost", value=f"```\n${total_price:,.2f}\n```", inline=True)
+    response.add_field(name=f"Account Balance", value=f"```\n${user_obj.buying_power:,.2f}\n```", inline=True)
+    response.set_thumbnail("https://wojakparadise.net/wojak/13382/img")
+    await interaction.response.send_message(embed=response)
     db.commit()
 
 
@@ -528,7 +612,7 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
     user_obj.sell_nft(nft_id, amount, nft_amount_owned)
     user_obj.charge_user(-total_cost)
     nft_obj = Nft(cursor, nft_id)
-    response = nextcord.Embed(title=f"Panic Sold {nft_obj.name} Stonks")
+    response = nextcord.Embed(title=f"Panic Sold {nft_obj.name} Stonks", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
                            f"`You have successfully panic sold the NFT based on {based_on.display_name}`"
     response.add_field(name=f"Amount Sold", value=f"```\n{amount:,}\n```", inline=True)
