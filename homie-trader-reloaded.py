@@ -101,6 +101,17 @@ async def wrong_file_type_response(interaction: nextcord.Interaction):
         await interaction.response.send_message(embed=response)
 
 
+async def symbol_in_use(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="This Stock Symbol is in Use", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"This stock symbol is being used by an existing NFT, select another stock symbol!"
+    response.set_thumbnail("https://i.pinimg.com/564x/96/3b/e6/963be6d5b60feec95a39ced9ea85f907.jpg")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+
 async def paycheck_already_redeemed_response(interaction: nextcord.Interaction):
     response = nextcord.Embed(title="Wait for your Next Paycheck", color=0x00e1ff)
     selected_movie = choice(list(movies.keys()))
@@ -154,6 +165,16 @@ async def creating_power_response(interaction: nextcord.Interaction):
     response.description = f"{interaction.user.display_name},\n" \
                            f"You already made an NFT for this channel and can not make any more. " \
                            f"If you would like to mint another NFT, that's too bad."
+    response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=response)
+    else:
+        await interaction.response.send_message(embed=response)
+
+async def image_not_square_response(interaction: nextcord.Interaction):
+    response = nextcord.Embed(title="Upload a More Square-ish Image", color=0x00e1ff)
+    response.description = f"{interaction.user.display_name},\n" \
+                           f"This image is not squarish enough. Crop it to be closer to a square."
     response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
     if interaction.response.is_done():
         await interaction.followup.send(embed=response)
@@ -374,7 +395,15 @@ async def mint(interaction: nextcord.Interaction,
         await account_not_found_response(interaction)
         return
 
+    if user_obj.symbol_exists(stock_symbol):
+        await symbol_in_use(interaction)
+        return
+
     # TODO: Check for square-ish image
+    ratio = image.height / image.width
+    if ratio < 0.75 or ratio > 1.25:
+        await image_not_square_response(interaction)
+        return
 
     if image.content_type not in ('image/jpeg', 'image/jpg', 'image/png'):
         await wrong_file_type_response(interaction)
@@ -623,7 +652,5 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
     response.set_thumbnail("https://i.kym-cdn.com/entries/icons/mobile/000/022/017/thumb.jpg")
     await interaction.followup.send(embed=response)
     db.commit()
-
-
 
 bot.run(TOKEN)

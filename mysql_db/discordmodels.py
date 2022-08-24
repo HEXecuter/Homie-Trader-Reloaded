@@ -72,6 +72,12 @@ class User:
                          (based_on_id, self.guild_id))
         return self.cur.fetchone()[0]
 
+
+    def symbol_exists(self, symbol):
+        self.cur.execute("SELECT COUNT(*) FROM nfts WHERE symbol = %s AND guild_id = %s",
+                         (symbol, self.guild_id))
+        return self.cur.fetchone()[0]
+
     def create_nft(self, nft_name, based_on, symbol, url, value):
         self.cur.execute("INSERT INTO nfts(nft_name, based_on, current_owner, guild_id, symbol,"
                          "image_url, last_checked, current_value) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
