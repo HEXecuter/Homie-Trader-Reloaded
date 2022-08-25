@@ -3,6 +3,22 @@ from decimal import Decimal
 from typing import Union
 from datetime import date
 import finnhub
+import logging
+from os import getenv
+
+logger = logging.getLogger(__name__)
+stream_handler = logging.StreamHandler()
+file_handler = logging.FileHandler("homie.log")
+formatting = logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(funcName)s:%(message)s")
+stream_handler.setFormatter(formatting)
+file_handler.setFormatter(formatting)
+logger.addHandler(stream_handler)
+logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
+if getenv("HOMIE_LOG") == "INFO":
+    logger.setLevel(logging.INFO)
+else:
+    logger.setLevel(logging.DEBUG)
 
 
 class Nft:
@@ -13,6 +29,7 @@ class Nft:
         self.cur.execute("SELECT * FROM nfts WHERE nft_id = %s", (self.id,))
         _, self.name, self.based_on, self.current_owner, self.guild_id, self.symbol, self.image, self.last_checked, \
             self.current_value, self.percent_change = self.cur.fetchone()
+        logger.debug(f"Created nft object with id: {nft_id}")
 
 
 class User:
@@ -30,6 +47,7 @@ class User:
         cur.execute("SELECT current_owner, pet_name, purchase_price FROM pets WHERE owner_id = %s", (self.user_id,))
         self.pet_owner, self.pet_name, self.pet_price = cur.fetchone()
         self.pet_status = "Safe for now" if self.pet_owner == self.discord_id else "Kidnapped"
+        logger.debug(f"Created user object with id {self.user_id}")
 
     def new_job(self, job_title: str, company_name: str):
         if self.job_title is None:  # If first job, make sure they can get paycheck today
@@ -38,10 +56,13 @@ class User:
                          (job_title, company_name, self.user_id))
         self.job_title = job_title
         self.company_name = company_name
+        logger.debug(f"Created new job for {self.user_id}")
 
     def get_multipliers(self) -> Decimal:
         self.cur.execute("SELECT IFNULL(SUM(stat_multiplier), 0) FROM multipliers WHERE owner_id = %s", (self.user_id,))
-        return self.cur.fetchone()[0]
+        multipliers = self.cur.fetchone()[0]
+        logger.debug(f"Multipliers for {self.user_id} was {multipliers}")
+        return multipliers
 
     def get_paycheck(self):
         if self.paycheck_redeemed == date.today():
@@ -50,12 +71,15 @@ class User:
         self.cur.execute("UPDATE users SET buying_power = buying_power + %s WHERE user_id = %s", (paycheck_amount,
                                                                                                   self.user_id))
         self.cur.execute("UPDATE users SET paycheck_redeemed = %s WHERE user_id = %s", (date.today(), self.user_id))
+        logger.debug(f"Paycheck amount for {self.user_id} was {paycheck_amount}")
         return paycheck_amount
 
     @property
     def buying_power(self):
         self.cur.execute("SELECT buying_power FROM users WHERE user_id = %s", (self.user_id,))
-        return self.cur.fetchone()[0]
+        balance = self.cur.fetchone()[0]
+        logger.debug(f"Account balance for {self.user_id} was {balance}")
+        return balance
 
     @classmethod
     def create_user(cls, cur: CMySQLCursor, discord_id: int, guild_id: int, pet_name: str, finn: finnhub.Client,
@@ -65,13 +89,13 @@ class User:
         cur.execute("INSERT INTO pets VALUES("
                     "(SELECT user_id FROM users WHERE discord_id = %s AND guild_id = %s LIMIT 1),"
                     "%s, %s, DEFAULT, DEFAULT)", (discord_id, guild_id, guild_id, pet_name))
+        logger.debug(f"{discord_id} from {guild_id} was created")
         return cls(cur, discord_id, guild_id, finn, mult)
 
     def nft_exists(self, based_on_id):
         self.cur.execute("SELECT COUNT(*) FROM nfts WHERE based_on = %s AND guild_id = %s",
                          (based_on_id, self.guild_id))
         return self.cur.fetchone()[0]
-
 
     def symbol_exists(self, symbol):
         self.cur.execute("SELECT COUNT(*) FROM nfts WHERE symbol = %s AND guild_id = %s",
@@ -83,14 +107,18 @@ class User:
                          "image_url, last_checked, current_value) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
                          (nft_name, based_on, self.user_id, self.guild_id, symbol.upper(), url, date.today(), value))
         self.cur.execute("UPDATE users SET creating_power = creating_power - 1 WHERE user_id = %s", (self.user_id,))
+        logger.debug(f"NFT {based_on} from {self.guild_id} was created with symbol {symbol} and value {value}")
 
     def add_modifier(self, final_multiplier, amount, degree_type, industry_index):
         self.cur.execute("INSERT INTO multipliers(owner_id, stat_multiplier, amount, degree_type, industry_index) "
                          "VALUES(%s, %s, %s, %s, %s)",
                          (self.user_id, final_multiplier, amount, degree_type, industry_index))
+        logger.debug(f"Modifier for {self.user_id} with amount {amount} multiplier {final_multiplier} and degree "
+                    f"{degree_type} was added")
 
     def charge_user(self, amount):
         self.cur.execute("UPDATE users SET buying_power = buying_power - %s WHERE user_id = %s", (amount, self.user_id))
+        logger.debug(f"{self.user_id} was charged {amount}")
 
     def get_nft_id(self, based_on_id):
         self.cur.execute("SELECT nft_id FROM nfts WHERE based_on = %s AND guild_id = %s",
@@ -110,10 +138,12 @@ class User:
         if last_checked == today:
             return current_value
         else:
+            logger.warning(f"NFT price was queried for {nft_id}")
             change = self.finn.quote(symbol)["dp"]
             percent_change = (self.change_mul * (Decimal(round(change, 2))/100))
             if percent_change < Decimal("-0.95"):
                 percent_change = Decimal("-0.95")
+            logger.warning(f"NFT {nft_id} had a percent change of {percent_change}")
             current_value = current_value * (1 + percent_change)
             self.cur.execute("UPDATE nfts SET "
                              "current_value = %s, percent_change = %s, last_checked = %s WHERE nft_id = %s",
@@ -124,14 +154,16 @@ class User:
         if self.nft_owned_amount(nft_id) == 0:
             self.cur.execute("INSERT INTO portfolio VALUES(%s, %s, %s)", (self.user_id, nft_id, amount))
         else:
-            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned + %s WHERE owner_id = %s AND nft_id = %s",
+            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned + %s WHERE owner_id = %s AND "
+                             "nft_id = %s",
                              (amount, self.user_id, nft_id))
 
     def sell_nft(self, nft_id, amount_sold, amount_owned):
         if amount_sold == amount_owned:
             self.cur.execute("DELETE FROM portfolio WHERE owner_id = %s AND nft_id = %s", (self.user_id, nft_id))
         else:
-            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned - %s WHERE owner_id = %s AND nft_id = %s",
+            self.cur.execute("UPDATE portfolio SET amount_owned = amount_owned - %s WHERE owner_id = %s AND "
+                             "nft_id = %s",
                              (amount_sold, self.user_id, nft_id))
 
     def pet_stolen(self, new_owner_disc_id):
@@ -159,7 +191,8 @@ class User:
                          (new_price, perc_change, nft_id))
 
 
-def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:
+def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client,
+             mult: str) -> Union[None, User]:
     """
     Returns User() object if user is found, else returns None
     :param cursor: MySQL Cursor Object
@@ -177,5 +210,5 @@ def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub
     elif number_of_users == 0:
         return None
     else:
-        # TODO: Add logging that there is more than one user detected
+        logger.warning(f"There was more than 1 user detected for {discord_id} {guild_id}")
         return None
