@@ -1,0 +1,13 @@
+[Unit]
+Description=Discord bot written in python for running homie-trader
+After=network.target mysql.service
+
+[Service]
+Type=simple
+# ExecStart= Change Path
+Environment=PYTHONBUFFERED=1
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
