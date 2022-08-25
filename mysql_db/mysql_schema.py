@@ -5,23 +5,13 @@ from dotenv import load_dotenv
 import logging
 from time import sleep
 
-logger = logging.getLogger(__name__)
-stream_handler = logging.StreamHandler()
-file_handler = logging.FileHandler("homie.log")
-formatting = logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(funcName)s:%(message)s")
-stream_handler.setFormatter(formatting)
-file_handler.setFormatter(formatting)
-logger.addHandler(stream_handler)
-logger.addHandler(file_handler)
-if getenv("HOMIE_LOG") == "INFO":
-    logger.setLevel(logging.INFO)
-else:
-    logger.setLevel(logging.DEBUG)
+logger = logging.getLogger("__main__."+__name__)
+
 
 def create_schema(cur: CMySQLCursor):
     # TODO: Remove this section when finished testing table schema
-    DEBUG = getenv("RESTART_HOMIE")
-    if DEBUG == "1":
+    RESTART = getenv("RESTART_HOMIE")
+    if RESTART == "1":
         # Using multi=True returns a generator of cursor objects, this will cause a command out of sync error
         # unless the generator is cleared before the next execute
         logger.warning("Attempting to drop all tables")

@@ -4,21 +4,9 @@ from typing import Union
 from datetime import date
 import finnhub
 import logging
-from os import getenv
 
-logger = logging.getLogger(__name__)
-stream_handler = logging.StreamHandler()
-file_handler = logging.FileHandler("homie.log")
-formatting = logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(funcName)s:%(message)s")
-stream_handler.setFormatter(formatting)
-file_handler.setFormatter(formatting)
-logger.addHandler(stream_handler)
-logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
-if getenv("HOMIE_LOG") == "INFO":
-    logger.setLevel(logging.INFO)
-else:
-    logger.setLevel(logging.DEBUG)
+logger = logging.getLogger("__main__."+__name__)
+
 
 
 class Nft:
