@@ -48,3 +48,13 @@ majors = ["Discriminating Against People Based on their Taste in Music",
           "Stealing Catalytic Converters",
           "Simping on the Main",
           "Misleading Investors"]
+
+slanders = ["the CEO has smelly breath!",
+           "the whole executive team does not know how to crank that soulja boy!",
+           "the company does not keep it a buck!",
+           "the CEO is not a swifty!",
+           "the CEO listens to Nickelback unironically!",
+           "the CEO posts minion memes on Facebook!",
+           "the CEO builds their Minecraft home out of dirt blocks!",
+           "the CEO let his tamagatchi pet die!"
+]

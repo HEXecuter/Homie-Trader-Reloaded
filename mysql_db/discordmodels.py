@@ -112,6 +112,8 @@ class User:
         else:
             change = self.finn.quote(symbol)["dp"]
             percent_change = (self.change_mul * (Decimal(round(change, 2))/100))
+            if percent_change < Decimal("-0.95"):
+                percent_change = Decimal("-0.95")
             current_value = current_value * (1 + percent_change)
             self.cur.execute("UPDATE nfts SET "
                              "current_value = %s, percent_change = %s, last_checked = %s WHERE nft_id = %s",
@@ -151,6 +153,11 @@ class User:
         for row in self.cur.fetchall():
             total += self.get_nft_cost(row[0]) * row[1]
         return total
+
+    def change_nft_price(self, new_price, perc_change, nft_id):
+        self.cur.execute("UPDATE nfts SET current_value = %s, percent_change = %s WHERE nft_id = %s",
+                         (new_price, perc_change, nft_id))
+
 
 def get_user(cursor: CMySQLCursor, discord_id: int, guild_id: int, finn: finnhub.Client, mult: str) -> Union[None, User]:
     """

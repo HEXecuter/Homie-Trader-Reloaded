@@ -7,7 +7,7 @@ from random import randint, choice, uniform
 from mysql_db.discordmodels import get_user, User, Nft
 from mysql_db.mysql_schema import create_schema
 import mysql.connector
-from homie_assets import movies, degrees, majors
+from homie_assets import movies, degrees, majors, slanders
 from decimal import Decimal
 # Change Finnhub to aiohttp
 import finnhub
@@ -216,7 +216,7 @@ async def nft_not_exists_response(interaction: nextcord.Interaction, username):
     response = nextcord.Embed(title=f"{username} Does Not Have an NFT", color=0x00e1ff)
     response.description = f"{interaction.user.display_name},\n" \
                            f"{username} does not have an NFT based on them. Create an NFT based on them, or " \
-                           f"select a different user to purchase their NFT."
+                           f"select a different user."
     response.set_image("https://i.pinimg.com/originals/e2/78/13/e27813e577548baadaa53ad737b6a5cd.gif")
     if interaction.response.is_done():
         await interaction.followup.send(embed=response)
@@ -485,8 +485,37 @@ async def mint(interaction: nextcord.Interaction,
 
 
 @nft.subcommand()
-async def info(interaction: nextcord.Interaction):
-    pass
+async def info(interaction: nextcord.Interaction, based_on: nextcord.Member):
+    """Use this command to purchase an NFT
+
+    Parameters
+    _____________
+    based_on:
+        The user the NFT is based on
+    """
+    await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+    # Check NFT already exist for user
+    if not user_obj.nft_exists(based_on.id):
+        await nft_not_exists_response(interaction, based_on.display_name)
+        return
+
+    nft_id = user_obj.get_nft_id(based_on.id)
+    nft_obj = Nft(cursor, nft_id)
+    nft_price = user_obj.get_nft_cost(nft_id)
+    response = nextcord.Embed(title=f"{nft_obj.name}NFT", color=0x00e1ff)
+    response.add_field(name=f"Current Value", value=f"```\n{nft_price:,.2f}\n```", inline=True)
+    response.add_field(name=f"Percent Change", value=f"```\n{nft_obj.percent_change:,.2%}\n```", inline=True)
+    response.add_field(name=f"Based On", value=f"```\n{based_on.display_name}\n```", inline=False)
+    response.add_field(name="Name", value=f"```\n{nft_obj.name}\n```", inline=False)
+    response.set_image(nft_obj.image)
+    await interaction.followup.send(embed=response)
+    db.commit()
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -632,6 +661,50 @@ async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Memb
     db.commit()
 
 
+@purchase.subcommand()
+async def slander(interaction: nextcord.Interaction, based_on: nextcord.Member):
+    """Use this command to purchase an NFT
+
+        Parameters
+        _____________
+        based_on:
+            The user the NFT is based on
+        """
+    await interaction.response.defer()
+    finn = finnhub.Client(getenv("FINN_TOKEN"))
+    cursor = db.cursor()
+    user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
+    if user_obj is None:  # If user does not have an account
+        await account_not_found_response(interaction)
+        return
+    # Check NFT already exist for user
+    if not user_obj.nft_exists(based_on.id):
+        await nft_not_exists_response(interaction, based_on.display_name)
+        return
+
+    nft_id = user_obj.get_nft_id(based_on.id)
+    nft_obj = Nft(cursor, nft_id)
+    nft_price = user_obj.get_nft_cost(nft_id)
+    if user_obj.buying_power < Decimal("50000"):
+        await too_poor_response(interaction, Decimal("50000"))
+        return
+    change = Decimal(-round(uniform(0.05, 0.3), 2))
+    new_value = nft_price * (Decimal("1") + change)
+    user_obj.charge_user(Decimal(50000))
+    user_obj.change_nft_price(new_value, change, nft_id)
+    response = nextcord.Embed(title=f"Journalist has Written a Slanderous Article on an NFT", color=0x00e1ff)
+    response.description = f"@here {interaction.user.display_name} has commissioned a journalist to write a " \
+                           f"slanderous article on the NFT based on {based_on.mention}. The article alleges that " \
+                           f"{choice(slanders)} This article has resulted in the NFT's price going down by " \
+                           f"{change:,.2%}."
+    response.add_field(name=f"New Price", value=f"```\n{new_value:,.2f}\n```", inline=True)
+    response.add_field(name=f"Percent Change", value=f"```\n{change:,.2%}\n```", inline=True)
+    response.add_field(name=f"NFT Name", value=f"```\n{nft_obj.name}\n```", inline=False)
+    response.set_thumbnail("https://wojakparadise.net/wojak/6196/img")
+    await interaction.followup.send(embed=response)
+    db.commit()
+
+
 @bot.slash_command(guild_ids=[868296265564319774])
 async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
                      amount: int = nextcord.SlashOption(min_value=1, max_value=100)):
@@ -681,6 +754,14 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
 
 @bot.slash_command(guild_ids=[868296265564319774])
 async def portfolio(interaction: nextcord.Interaction, user: nextcord.Member):
+    """Use this command to get information on someone's account
+
+    Parameters
+    _____________
+    user:
+        User who's portfolio you want to see
+
+    """
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -711,7 +792,6 @@ async def portfolio(interaction: nextcord.Interaction, user: nextcord.Member):
     response.add_field(name=f"Portfolio Balance", value=f"```\n${portfolio_value:,.2f}\n```", inline=False)
     await interaction.followup.send(embed=response)
     db.commit()
-
 
 
 bot.run(TOKEN)
