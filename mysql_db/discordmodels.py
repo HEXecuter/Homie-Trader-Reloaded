@@ -8,7 +8,6 @@ import logging
 logger = logging.getLogger("__main__."+__name__)
 
 
-
 class Nft:
 
     def __init__(self, cur: CMySQLCursor, nft_id):
@@ -102,7 +101,7 @@ class User:
                          "VALUES(%s, %s, %s, %s, %s)",
                          (self.user_id, final_multiplier, amount, degree_type, industry_index))
         logger.debug(f"Modifier for {self.user_id} with amount {amount} multiplier {final_multiplier} and degree "
-                    f"{degree_type} was added")
+                     f"{degree_type} was added")
 
     def charge_user(self, amount):
         self.cur.execute("UPDATE users SET buying_power = buying_power - %s WHERE user_id = %s", (amount, self.user_id))

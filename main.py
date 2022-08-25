@@ -368,7 +368,7 @@ async def apply(interaction: nextcord.Interaction, job_title: str = nextcord.Sla
         response.set_thumbnail("https://i.kym-cdn.com/photos/images/newsfeed/001/716/052/bda.png")
         await interaction.response.send_message(content=content, embed=response)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name}"
-                    f" is now the {job_title} at {company_name}")
+                     f" is now the {job_title} at {company_name}")
 
 
 @job.subcommand()
@@ -444,13 +444,13 @@ async def mint(interaction: nextcord.Interaction,
     if user_obj.symbol_exists(stock_symbol):
         await symbol_in_use(interaction)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} supplied a duplicate symbol: "
-                    f"{stock_symbol}")
+                     f"{stock_symbol}")
         return
 
     if image.content_type not in ('image/jpeg', 'image/jpg', 'image/png'):
         await wrong_file_type_response(interaction)
         logger.warning(f"{interaction.user.display_name} from {interaction.guild.name} "
-                    f"supplied a file of {image.content_type}")
+                       f"supplied a file of {image.content_type}")
         return
 
     # TODO: Check for square-ish image
@@ -469,14 +469,14 @@ async def mint(interaction: nextcord.Interaction,
     if user_obj.creating_power < 1:
         await creating_power_response(interaction)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} ran out of creating power:"
-                    f" {user_obj.creating_power}")
+                     f" {user_obj.creating_power}")
         return
 
     nft_channel = get_nft_channel(interaction)  # If there is no dedicated NFT channel
     if nft_channel is None:
         await no_nft_channel_response(interaction)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} failed to have "
-                    f"a dedicated NFT channel")
+                     f"a dedicated NFT channel")
         return
 
     image_storage = bot.get_partial_messageable(1011084374126624820)
@@ -484,7 +484,7 @@ async def mint(interaction: nextcord.Interaction,
     if stock_change is None:
         await invalid_symbol_response(interaction)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} supplied an invalid symbol:"
-                    f" {stock_symbol}")
+                     f" {stock_symbol}")
         return
     value = round(uniform(1, 100), 2)
     image_byte = BytesIO(await image.read())
@@ -501,7 +501,7 @@ async def mint(interaction: nextcord.Interaction,
     if role is None:
         role = await interaction.guild.create_role(name=f"${stock_symbol} Homie", color=0x00e1ff, reason="NFT Creation")
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} created role:"
-                    f" ${stock_symbol} Homie")
+                     f" ${stock_symbol} Homie")
     await based_on.add_roles(role, reason="NFT Creation")
 
     description = f"@here {interaction.user.display_name} has successfully minted a new NFT based on " \
@@ -524,7 +524,7 @@ async def mint(interaction: nextcord.Interaction,
                            "me_gusta_mucho_by_megustamuchoplz-d416uqk.png?1319690633")
     await interaction.followup.send(embed=response)
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully created nft:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
 
 
 @nft.subcommand()
@@ -537,7 +537,7 @@ async def info(interaction: nextcord.Interaction, based_on: nextcord.Member):
         The user the NFT is based on
     """
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting an info on:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -550,7 +550,7 @@ async def info(interaction: nextcord.Interaction, based_on: nextcord.Member):
     if not user_obj.nft_exists(based_on.id):
         await nft_not_exists_response(interaction, based_on.display_name)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} target user did not "
-                    f"have an account")
+                     f"have an account")
         return
 
     nft_id = user_obj.get_nft_id(based_on.id)
@@ -565,7 +565,7 @@ async def info(interaction: nextcord.Interaction, based_on: nextcord.Member):
     await interaction.followup.send(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully completed an info on:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -586,8 +586,9 @@ async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.
     amount:
         The amount of degrees you want to purchase
     """
-    logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting to buy a degree of type: "
-                f"{degree_type}")
+    logger.debug(
+        f"{interaction.user.display_name} from {interaction.guild.name} is attempting to buy a degree of type: "
+        f"{degree_type}")
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
     user_obj = get_user(cursor, interaction.user.id, interaction.guild_id, finn, volatility_multiplier)
@@ -619,7 +620,7 @@ async def degree(interaction: nextcord.Interaction, degree_type: str = nextcord.
     await interaction.response.send_message(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully bought a degree of type:"
-                f" {degree_type}")
+                 f" {degree_type}")
 
 
 # TODO: Check if symbol is already in use
@@ -636,7 +637,7 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
             The amount of NFTs you want to purchase
         """
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting to buy {amount} "
-                f"NFTs of type: {based_on.display_name}")
+                 f"NFTs of type: {based_on.display_name}")
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -648,7 +649,7 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
     # Check NFT already exist for user
     if not user_obj.nft_exists(based_on.id):
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} target user did not have an "
-                    f"account")
+                     f"account")
         await nft_not_exists_response(interaction, based_on.display_name)
         return
 
@@ -675,7 +676,7 @@ async def stock(interaction: nextcord.Interaction, based_on: nextcord.Member,
     await interaction.followup.send(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully bought an NFT based on:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
 
 
 @purchase.subcommand()
@@ -699,13 +700,13 @@ async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Memb
     if target_obj is None:
         await pet_not_found_response(interaction, pet_owner.display_name)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} target did not have a pet:"
-                    f" {pet_owner.display_name}")
+                     f" {pet_owner.display_name}")
         return
 
     if interaction.user.id == target_obj.pet_owner:
         await pet_already_owned_response(interaction)
         logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} already owns the target's pet:"
-                    f" {pet_owner.display_name}")
+                     f" {pet_owner.display_name}")
         return
 
     if user_obj.user_id == target_obj.user_id:
@@ -720,7 +721,7 @@ async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Memb
             await too_poor_pet_response(interaction, total_price, f"kidnap {pet_owner.mention} pet "
                                                                   f"{target_obj.pet_name},")
             logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} couldn't afford target's pet:"
-                        f" {pet_owner.display_name}")
+                         f" {pet_owner.display_name}")
             return
     user_obj.charge_user(total_price)
     target_obj.pet_stolen(user_obj.discord_id)
@@ -733,7 +734,7 @@ async def kidnap_pet(interaction: nextcord.Interaction, pet_owner: nextcord.Memb
     await interaction.response.send_message(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully kidnapped pet:"
-                f" {pet_owner.display_name}")
+                 f" {pet_owner.display_name}")
 
 
 @purchase.subcommand()
@@ -746,7 +747,7 @@ async def slander(interaction: nextcord.Interaction, based_on: nextcord.Member):
             The user the NFT is based on
         """
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting to slander:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -784,7 +785,7 @@ async def slander(interaction: nextcord.Interaction, based_on: nextcord.Member):
     await interaction.followup.send(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully slandered:"
-                f" {based_on.display_name} by {change:,.2%}")
+                 f" {based_on.display_name} by {change:,.2%}")
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -799,8 +800,9 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
         amount:
             The amount of NFTs you want to purchase
         """
-    logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting to sell {amount} of type:"
-                f" {based_on.display_name}")
+    logger.debug(
+        f"{interaction.user.display_name} from {interaction.guild.name} is attempting to sell {amount} of type:"
+        f" {based_on.display_name}")
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -837,7 +839,7 @@ async def sell_stock(interaction: nextcord.Interaction, based_on: nextcord.Membe
     await interaction.followup.send(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully sold {amount} of type:"
-                f" {based_on.display_name}")
+                 f" {based_on.display_name}")
 
 
 @bot.slash_command(guild_ids=[868296265564319774])
@@ -851,7 +853,7 @@ async def portfolio(interaction: nextcord.Interaction, user: nextcord.Member):
 
     """
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} is attempting to run a portfolio on:"
-                f" {user.display_name}")
+                 f" {user.display_name}")
     await interaction.response.defer()
     finn = finnhub.Client(getenv("FINN_TOKEN"))
     cursor = db.cursor()
@@ -885,7 +887,7 @@ async def portfolio(interaction: nextcord.Interaction, user: nextcord.Member):
     await interaction.followup.send(embed=response)
     db.commit()
     logger.debug(f"{interaction.user.display_name} from {interaction.guild.name} successfully ran a portfolio on:"
-                f" {user.display_name}")
+                 f" {user.display_name}")
 
 
 @bot.event
