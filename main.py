@@ -23,12 +23,11 @@ stream_handler.setFormatter(formatting)
 file_handler.setFormatter(formatting)
 logger.addHandler(stream_handler)
 logger.addHandler(file_handler)
+load_dotenv()
 if getenv("HOMIE_LOG") == "INFO":
     logger.setLevel(logging.INFO)
 else:
     logger.setLevel(logging.DEBUG)
-
-load_dotenv()
 
 # Create database connection and generate schema if it doesn't exist
 db = mysql.connector.connect(
@@ -177,8 +176,8 @@ async def invalid_symbol_response(interaction: nextcord.Interaction):
 
 
 def get_nft_channel(interaction: nextcord.Interaction):
-    for text_channel in interaction.guild.channels[0].channels:
-        if 'nft' in text_channel.name.lower() and 'museum' in text_channel.name.lower():
+    for text_channel in interaction.guild.channels:
+        if 'nft' in text_channel.name.lower() and 'museum' in text_channel.name.lower() and text_channel.type.name == 'text':
             return text_channel
     else:
         return None
